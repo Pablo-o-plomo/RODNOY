@@ -18,6 +18,7 @@ HELP = (
     "/help — помощь\n"
     "/add_reminder — добавить напоминание\n"
     "/my_reminders — мои напоминания\n"
+    "/voice — включить или выключить голосовые ответы\n"
     "/cancel — отменить текущее действие"
 )
 
@@ -41,3 +42,22 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     context.user_data.clear()
     await update.effective_message.reply_text("Хорошо, отменил. Можно выбрать другое действие.", reply_markup=main_menu_keyboard())
+
+
+async def voice_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    if not user:
+        return
+    db = context.application.bot_data["db"]
+    db.upsert_user(user.id, user.full_name)
+    config = context.application.bot_data["config"]
+    enabled = db.toggle_voice_reply(user.id)
+    if enabled and not config.enable_tts:
+        await update.effective_message.reply_text(
+            "Голосовой режим включён для вас, но генерация голоса выключена на сервере. "
+            "Администратор может включить ENABLE_TTS=true.",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+    status = "включён" if enabled else "выключен"
+    await update.effective_message.reply_text(f"Голосовой режим {status}.", reply_markup=main_menu_keyboard())

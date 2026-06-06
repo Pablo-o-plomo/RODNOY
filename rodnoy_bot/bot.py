@@ -8,13 +8,14 @@ from rodnoy_bot.config import Config
 from rodnoy_bot.database import Database
 from rodnoy_bot.handlers.photo import handle_photo, handle_photo_callback
 from rodnoy_bot.handlers.reminders import add_reminder, handle_reminder_callback, my_reminders
-from rodnoy_bot.handlers.start import cancel, help_command, menu, start
+from rodnoy_bot.handlers.start import cancel, help_command, menu, start, voice_mode
 from rodnoy_bot.handlers.text import handle_text
 from rodnoy_bot.handlers.voice import handle_voice
 from rodnoy_bot.services.notification_service import NotificationService
 from rodnoy_bot.services.openai_service import OpenAIService
 from rodnoy_bot.services.reminder_service import ReminderService
 from rodnoy_bot.services.speech_service import SpeechService
+from rodnoy_bot.services.tts_service import TTSService
 from rodnoy_bot.services.vision_service import VisionService
 
 logging.basicConfig(format="%(asctime)s %(levelname)s %(name)s: %(message)s", level=logging.INFO)
@@ -32,6 +33,7 @@ def build_application():
     application.bot_data["openai"] = OpenAIService(config.openai_api_key, config.openai_text_model)
     application.bot_data["vision"] = VisionService(config.openai_api_key, config.openai_vision_model)
     application.bot_data["speech"] = SpeechService(config.openai_api_key, config.openai_transcribe_model)
+    application.bot_data["tts"] = TTSService(config.openai_api_key, config.openai_tts_model, config.openai_tts_voice)
     application.bot_data["notifier"] = NotificationService(config.child_telegram_id, config.admin_telegram_id)
     reminder_service = ReminderService(db)
     application.bot_data["reminder_service"] = reminder_service
@@ -41,6 +43,7 @@ def build_application():
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("menu", menu))
     application.add_handler(CommandHandler("cancel", cancel))
+    application.add_handler(CommandHandler("voice", voice_mode))
     application.add_handler(CommandHandler("add_reminder", add_reminder))
     application.add_handler(CommandHandler("my_reminders", my_reminders))
     application.add_handler(CallbackQueryHandler(handle_photo_callback, pattern=r"^photo:"))

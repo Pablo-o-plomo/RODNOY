@@ -12,6 +12,7 @@ from rodnoy_bot.handlers.safety import (
     scam_warning,
 )
 from rodnoy_bot.keyboards import main_menu_keyboard
+from rodnoy_bot.services.reply_service import reply_text_with_optional_voice
 
 MENU_PROMPTS = {
     "❤️ Поговорить": "Конечно. Расскажите, как прошёл день?",
@@ -55,16 +56,20 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
         answer = await vision.answer_photo_question(photo_context["image_base64"], text, photo_context["detected_type"])
         db.clear_photo_pending_question(user.id)
         db.add_message(user.id, "out", answer)
-        await message.reply_text(answer, reply_markup=main_menu_keyboard())
+        await reply_text_with_optional_voice(message, context, answer, reply_markup=main_menu_keyboard())
         return
 
     if text == "📞 Связаться с детьми":
         notifier = context.application.bot_data["notifier"]
-        await message.reply_text(notifier.unavailable_message(), reply_markup=main_menu_keyboard())
+        await reply_text_with_optional_voice(message, context, notifier.unavailable_message(), reply_markup=main_menu_keyboard())
+        return
+
+    if text == "🔊 Голосовой режим":
+        await _toggle_voice_mode(update, context)
         return
 
     if text in MENU_PROMPTS:
-        await message.reply_text(MENU_PROMPTS[text], reply_markup=main_menu_keyboard())
+        await reply_text_with_optional_voice(message, context, MENU_PROMPTS[text], reply_markup=main_menu_keyboard())
         return
 
     prefix = ""
@@ -80,7 +85,26 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
     answer = await openai_service.answer_text(text)
     answer = prefix + answer
     db.add_message(user.id, "out", answer)
-    await message.reply_text(answer, reply_markup=main_menu_keyboard())
+    await reply_text_with_optional_voice(message, context, answer, reply_markup=main_menu_keyboard())
+
+
+async def _toggle_voice_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    user = update.effective_user
+    if not message or not user:
+        return
+    db = context.application.bot_data["db"]
+    enabled = db.toggle_voice_reply(user.id)
+    config = context.application.bot_data["config"]
+    if enabled and not config.enable_tts:
+        await message.reply_text(
+            "Голосовой режим включён для вас, но генерация голоса выключена на сервере. "
+            "Администратор может включить ENABLE_TTS=true.",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+    status = "включён" if enabled else "выключен"
+    await message.reply_text(f"Голосовой режим {status}.", reply_markup=main_menu_keyboard())
 
 
 async def _handle_reminder_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
@@ -97,4 +121,9 @@ async def _handle_reminder_text(update: Update, context: ContextTypes.DEFAULT_TY
     reminder_service.schedule_reminder(context.application, reminder_id, user.id, title, at_time, repeat_rule)
     context.user_data.pop("awaiting_reminder", None)
     repeat = "каждый день" if repeat_rule == "daily" else "один раз"
-    await message.reply_text(f"Готово. Напомню: {title} в {at_time}, {repeat}.", reply_markup=main_menu_keyboard())
+    await reply_text_with_optional_voice(
+        message,
+        context,
+        f"Готово. Напомню: {title} в {at_time}, {repeat}.",
+        reply_markup=main_menu_keyboard(),
+    )

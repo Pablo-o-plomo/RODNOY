@@ -4,6 +4,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from rodnoy_bot.keyboards import main_menu_keyboard, photo_keyboard
+from rodnoy_bot.services.reply_service import reply_text_with_optional_voice, send_optional_voice_reply
 
 CALLBACK_QUESTIONS = {
     "photo:what": "Что это?",
@@ -58,7 +59,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     db.upsert_user(user.id, user.full_name)
     db.save_photo_context(user.id, photo.file_id, detected_type, image_base64)
     db.add_message(user.id, "in", f"[photo:{detected_type}]")
-    await message.reply_text(
+    await reply_text_with_optional_voice(
+        message,
+        context,
         f"Я вижу фото: {label}.\nЧто вы хотите узнать по нему?",
         reply_markup=photo_keyboard(detected_type),
     )
@@ -85,3 +88,4 @@ async def handle_photo_callback(update: Update, context: ContextTypes.DEFAULT_TY
     answer = await vision.answer_photo_question(photo_context["image_base64"], question, photo_context["detected_type"])
     db.add_message(user.id, "out", answer)
     await query.message.reply_text(answer, reply_markup=main_menu_keyboard())
+    await send_optional_voice_reply(query.message.chat_id, user.id, context, answer)

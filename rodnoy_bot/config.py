@@ -17,6 +17,9 @@ class Config:
     openai_text_model: str = "gpt-4o-mini"
     openai_vision_model: str = "gpt-4o-mini"
     openai_transcribe_model: str = "gpt-4o-mini-transcribe"
+    enable_tts: bool = False
+    openai_tts_model: str = "gpt-4o-mini-tts"
+    openai_tts_voice: str = "alloy"
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -37,6 +40,9 @@ class Config:
             openai_text_model=os.getenv("OPENAI_TEXT_MODEL", "gpt-4o-mini"),
             openai_vision_model=os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini"),
             openai_transcribe_model=os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe"),
+            enable_tts=_env_bool(os.getenv("ENABLE_TTS"), default=False),
+            openai_tts_model=os.getenv("OPENAI_TTS_MODEL", "gpt-4o-mini-tts"),
+            openai_tts_voice=os.getenv("OPENAI_TTS_VOICE", "alloy"),
         )
 
     @property
@@ -57,3 +63,9 @@ def _optional_int(value: str | None) -> int | None:
     except ValueError:
         return None
     return parsed if parsed > 0 else None
+
+
+def _env_bool(value: str | None, default: bool = False) -> bool:
+    if value is None or not value.strip():
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}

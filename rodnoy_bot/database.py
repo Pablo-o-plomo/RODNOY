@@ -32,6 +32,7 @@ class Database:
                     telegram_id INTEGER NOT NULL UNIQUE,
                     name TEXT,
                     role TEXT NOT NULL DEFAULT 'parent',
+                    voice_reply_enabled INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL
                 );
 
@@ -67,6 +68,7 @@ class Database:
                 );
                 """
             )
+            _ensure_column(conn, "users", "voice_reply_enabled", "INTEGER NOT NULL DEFAULT 0")
 
     def upsert_user(self, telegram_id: int, name: str | None, role: str = "parent") -> int:
         now = _now()
@@ -86,6 +88,24 @@ class Database:
         with self.connect() as conn:
             row = conn.execute("SELECT id FROM users WHERE telegram_id = ?", (telegram_id,)).fetchone()
             return int(row["id"]) if row else None
+
+    def is_voice_reply_enabled(self, telegram_id: int) -> bool:
+        user_id = self.get_user_id(telegram_id)
+        if not user_id:
+            return False
+        with self.connect() as conn:
+            row = conn.execute("SELECT voice_reply_enabled FROM users WHERE id = ?", (user_id,)).fetchone()
+            return bool(row and row["voice_reply_enabled"])
+
+    def set_voice_reply_enabled(self, telegram_id: int, enabled: bool) -> None:
+        user_id = self.get_user_id(telegram_id) or self.upsert_user(telegram_id, None)
+        with self.connect() as conn:
+            conn.execute("UPDATE users SET voice_reply_enabled = ? WHERE id = ?", (1 if enabled else 0, user_id))
+
+    def toggle_voice_reply(self, telegram_id: int) -> bool:
+        enabled = not self.is_voice_reply_enabled(telegram_id)
+        self.set_voice_reply_enabled(telegram_id, enabled)
+        return enabled
 
     def add_message(self, telegram_id: int, direction: str, text: str | None) -> None:
         user_id = self.get_user_id(telegram_id) or self.upsert_user(telegram_id, None)
@@ -160,6 +180,12 @@ class Database:
     def deactivate_reminder(self, reminder_id: int) -> None:
         with self.connect() as conn:
             conn.execute("UPDATE reminders SET active = 0 WHERE id = ?", (reminder_id,))
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def _now() -> str:
