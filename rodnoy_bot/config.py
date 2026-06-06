@@ -49,6 +49,11 @@ class Config:
 
 
 def _optional_int(value: str | None) -> int | None:
+    """Return a Telegram ID or None for empty, zero, or invalid MVP values."""
     if not value or not value.strip():
         return None
-    return int(value)
+    try:
+        parsed = int(value)
+    except ValueError:
+        return None
+    return parsed if parsed > 0 else None

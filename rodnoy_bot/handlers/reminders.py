@@ -41,8 +41,7 @@ async def handle_reminder_callback(update: Update, context: ContextTypes.DEFAULT
         await query.edit_message_text("Хорошо, напомню через 15 минут.")
     elif action == "notify_child":
         notifier = context.application.bot_data["notifier"]
-        sent = await notifier.notify_child(context, "Родитель просит помочь с напоминанием.")
-        await query.edit_message_text("Сообщил детям." if sent else "Контакт ребёнка пока не настроен.")
+        await query.edit_message_text(notifier.unavailable_message())
 
 
 async def send_snoozed_reminder(context: ContextTypes.DEFAULT_TYPE) -> None:

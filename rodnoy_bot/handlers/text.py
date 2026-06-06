@@ -60,24 +60,17 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
 
     if text == "📞 Связаться с детьми":
         notifier = context.application.bot_data["notifier"]
-        sent = await notifier.notify_child(context, "Родитель просит связаться с ним.")
-        await message.reply_text(
-            "Я отправил сообщение детям." if sent else "Контакт ребёнка пока не настроен. Попросите добавить CHILD_TELEGRAM_ID в .env.",
-            reply_markup=main_menu_keyboard(),
-        )
+        await message.reply_text(notifier.unavailable_message(), reply_markup=main_menu_keyboard())
         return
 
     if text in MENU_PROMPTS:
         await message.reply_text(MENU_PROMPTS[text], reply_markup=main_menu_keyboard())
         return
 
-    notifier = context.application.bot_data["notifier"]
     prefix = ""
     if has_scam_risk(text):
-        await notifier.notify_child(context, f"Внимание: родитель прислал подозрительное сообщение:\n{text[:1000]}")
         prefix += scam_warning() + "\n\n"
     if has_distress_risk(text):
-        await notifier.notify_child(context, f"Тревожное сообщение от родителя:\n{text[:1000]}")
         prefix += distress_warning() + "\n\n"
     if has_dangerous_repair_risk(text):
         prefix += repair_warning()
