@@ -41,10 +41,28 @@ class VisionService:
         except json.JSONDecodeError:
             return "unknown", "фото"
 
-    async def answer_photo_question(self, image_base64: str, question: str, detected_type: str) -> str:
-        return await asyncio.to_thread(self._answer_photo_question_sync, image_base64, question, detected_type)
+    async def answer_photo_question(
+        self,
+        image_base64: str,
+        question: str,
+        detected_type: str,
+        conversation_context: str | None = None,
+    ) -> str:
+        return await asyncio.to_thread(
+            self._answer_photo_question_sync,
+            image_base64,
+            question,
+            detected_type,
+            conversation_context,
+        )
 
-    def _answer_photo_question_sync(self, image_base64: str, question: str, detected_type: str) -> str:
+    def _answer_photo_question_sync(
+        self,
+        image_base64: str,
+        question: str,
+        detected_type: str,
+        conversation_context: str | None,
+    ) -> str:
         response = self.client.responses.create(
             model=self.vision_model,
             instructions=SYSTEM_PROMPT,
@@ -55,7 +73,8 @@ class VisionService:
                         "type": "input_text",
                         "text": (
                             f"Тип фото: {detected_type}. Вопрос: {question}\n"
-                            "Ответь коротко, простыми словами, по шагам. Если есть риск для здоровья, денег или безопасности — предупреди."
+                            f"Контекст диалога: {conversation_context or 'Истории мало.'}\n"
+                            "Ответь коротко, простыми словами, по шагам. Не здоровайся повторно и не начинай разговор заново. Если есть риск для здоровья, денег или безопасности — предупреди."
                         ),
                     },
                     {"type": "input_image", "image_url": f"data:image/jpeg;base64,{image_base64}"},

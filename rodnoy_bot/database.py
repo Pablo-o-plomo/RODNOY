@@ -107,6 +107,19 @@ class Database:
         self.set_voice_reply_enabled(telegram_id, enabled)
         return enabled
 
+    def get_last_message_at(self, telegram_id: int) -> datetime | None:
+        user_id = self.get_user_id(telegram_id)
+        if not user_id:
+            return None
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT created_at FROM messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
+                (user_id,),
+            ).fetchone()
+        if not row or not row["created_at"]:
+            return None
+        return datetime.fromisoformat(row["created_at"])
+
     def add_message(self, telegram_id: int, direction: str, text: str | None) -> None:
         user_id = self.get_user_id(telegram_id) or self.upsert_user(telegram_id, None)
         with self.connect() as conn:
@@ -114,6 +127,23 @@ class Database:
                 "INSERT INTO messages (user_id, direction, text, created_at) VALUES (?, ?, ?, ?)",
                 (user_id, direction, text, _now()),
             )
+
+    def list_recent_messages(self, telegram_id: int, limit: int = 30) -> list[sqlite3.Row]:
+        user_id = self.get_user_id(telegram_id)
+        if not user_id:
+            return []
+        with self.connect() as conn:
+            rows = list(conn.execute(
+                """
+                SELECT direction, text, created_at
+                FROM messages
+                WHERE user_id = ? AND text IS NOT NULL
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (user_id, limit),
+            ))
+        return list(reversed(rows))
 
     def save_photo_context(self, telegram_id: int, file_id: str, detected_type: str, image_base64: str) -> None:
         user_id = self.get_user_id(telegram_id) or self.upsert_user(telegram_id, None)

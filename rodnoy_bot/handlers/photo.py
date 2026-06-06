@@ -85,7 +85,22 @@ async def handle_photo_callback(update: Update, context: ContextTypes.DEFAULT_TY
     question = CALLBACK_QUESTIONS.get(query.data, "Объяснить фото")
     await query.edit_message_text("Сейчас посмотрю и отвечу простыми словами...")
     vision = context.application.bot_data["vision"]
-    answer = await vision.answer_photo_question(photo_context["image_base64"], question, photo_context["detected_type"])
+    answer = await vision.answer_photo_question(
+        photo_context["image_base64"],
+        question,
+        photo_context["detected_type"],
+        conversation_context=_conversation_context(db.list_recent_messages(user.id, limit=30)),
+    )
     db.add_message(user.id, "out", answer)
     await query.message.reply_text(answer, reply_markup=main_menu_keyboard())
     await send_optional_voice_reply(query.message.chat_id, user.id, context, answer)
+
+
+def _conversation_context(history) -> str:
+    if not history:
+        return "Истории пока мало."
+    lines = []
+    for item in history:
+        speaker = "Пользователь" if item["direction"] == "in" else "РОДНОЙ"
+        lines.append(f"{speaker}: {item['text']}")
+    return "\n".join(lines[-30:])

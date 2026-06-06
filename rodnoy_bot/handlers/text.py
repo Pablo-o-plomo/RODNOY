@@ -43,6 +43,7 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
         return
     db = context.application.bot_data["db"]
     db.upsert_user(user.id, user.full_name)
+    last_message_at = db.get_last_message_at(user.id)
     db.add_message(user.id, "in", text)
 
     if context.user_data.get("awaiting_reminder"):
@@ -53,7 +54,13 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
     if photo_context and photo_context["pending_question"] == "custom":
         vision = context.application.bot_data["vision"]
         await message.chat.send_action("typing")
-        answer = await vision.answer_photo_question(photo_context["image_base64"], text, photo_context["detected_type"])
+        history = db.list_recent_messages(user.id, limit=30)
+        answer = await vision.answer_photo_question(
+            photo_context["image_base64"],
+            text,
+            photo_context["detected_type"],
+            conversation_context=_conversation_context(history),
+        )
         db.clear_photo_pending_question(user.id)
         db.add_message(user.id, "out", answer)
         await reply_text_with_optional_voice(message, context, answer, reply_markup=main_menu_keyboard())
@@ -82,7 +89,13 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
 
     openai_service = context.application.bot_data["openai"]
     await message.chat.send_action("typing")
-    answer = await openai_service.answer_text(text)
+    history = db.list_recent_messages(user.id, limit=30)
+    answer = await openai_service.answer_text(
+        text,
+        history=history,
+        user_description=_user_description(user.full_name, user.id),
+        last_message_at=last_message_at,
+    )
     answer = prefix + answer
     db.add_message(user.id, "out", answer)
     await reply_text_with_optional_voice(message, context, answer, reply_markup=main_menu_keyboard())
@@ -127,3 +140,21 @@ async def _handle_reminder_text(update: Update, context: ContextTypes.DEFAULT_TY
         f"Готово. Напомню: {title} в {at_time}, {repeat}.",
         reply_markup=main_menu_keyboard(),
     )
+
+
+def _user_description(full_name: str | None, telegram_id: int) -> str:
+    name = full_name or "без имени"
+    return (
+        f"Пользователь: {name}. Telegram ID: {telegram_id}. "
+        "С ним нужно говорить простыми словами, помнить предыдущие ответы и вести диалог пошагово."
+    )
+
+
+def _conversation_context(history) -> str:
+    if not history:
+        return "Истории пока мало."
+    lines = []
+    for item in history:
+        speaker = "Пользователь" if item["direction"] == "in" else "РОДНОЙ"
+        lines.append(f"{speaker}: {item['text']}")
+    return "\n".join(lines[-30:])
